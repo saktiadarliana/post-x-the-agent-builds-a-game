@@ -50,7 +50,7 @@ var state = {
   mode: 'title', // title | play | over
   score: 0, lives: 3, timeLeft: 60, elapsed: 0,
   starTimer: 0, cloudTimer: 2.2, invuln: 0, flash: 0,
-  finalScore: 0, reason: ''
+  finalScore: 0, reason: '', paused: false
 };
 var bgStars = [];
 for (var i = 0; i < 110; i++) bgStars.push({ x: Math.random() * W, y: Math.random() * 430, r: Math.random() * 1.4 + 0.4, p: Math.random() * 6.28 });
@@ -60,6 +60,7 @@ function reset() {
   keeper.x = W / 2;
   state.score = 0; state.lives = 3; state.timeLeft = 60; state.elapsed = 0;
   state.starTimer = 0; state.cloudTimer = 2.6; state.invuln = 0; state.flash = 0;
+  state.paused = false;
 }
 function startGame() { reset(); state.mode = 'play'; }
 function endGame(reason) {
@@ -69,16 +70,22 @@ function endGame(reason) {
 addEventListener('keydown', function (e) {
   keys[e.key] = true;
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === ' ') e.preventDefault();
+  if ((e.key === 'p' || e.key === 'P') && state.mode === 'play') { state.paused = !state.paused; return; }
   if ((e.key === ' ' || e.key === 'Enter') && state.mode !== 'play') startGame();
 });
 addEventListener('keyup', function (e) { keys[e.key] = false; });
 canvas.addEventListener('pointerdown', function () { if (state.mode !== 'play') startGame(); });
 
+function fallMult() {
+  // Difficulty ramp: everything falls a little faster every 10 seconds,
+  // so the last stretch of the minute is tenser than the first.
+  return 1 + 0.08 * Math.floor(state.elapsed / 10);
+}
 function spawnStar() {
-  stars.push({ x: 30 + Math.random() * (W - 60), y: -16, vy: 150 + state.elapsed * 3.2 + Math.random() * 60, r: 11, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 2 });
+  stars.push({ x: 30 + Math.random() * (W - 60), y: -16, vy: (150 + Math.random() * 60) * fallMult(), r: 11, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 2 });
 }
 function spawnCloud() {
-  clouds.push({ x: 60 + Math.random() * (W - 120), y: -30, vy: 66 + Math.random() * 30, w: 96 + Math.random() * 40, drift: (Math.random() - 0.5) * 24 });
+  clouds.push({ x: 60 + Math.random() * (W - 120), y: -30, vy: (66 + Math.random() * 30) * fallMult(), w: 96 + Math.random() * 40, drift: (Math.random() - 0.5) * 24 });
 }
 function burst(x, y, color) {
   for (var i = 0; i < 10; i++) sparks.push({ x: x, y: y, vx: (Math.random() - 0.5) * 190, vy: -Math.random() * 160 - 30, life: 0.55, color: color });
@@ -87,6 +94,7 @@ function burst(x, y, color) {
 function update(dt) {
   var t = performance.now() / 1000;
   if (state.mode !== 'play') { draw(t); return; }
+  if (state.paused) { draw(t); return; } // frozen: elapsed (and so the 60s timer) does not advance
   state.elapsed += dt;
   state.timeLeft = Math.max(0, 60 - state.elapsed);
   if (state.timeLeft <= 0) { endGame('time'); draw(t); return; }
@@ -239,6 +247,13 @@ function draw(t) {
     ctx.fillText('Arrow keys to move. 60 seconds. A storm cloud costs a life.', W / 2, 292);
     ctx.fillStyle = '#ffd94d'; ctx.font = 'bold 24px Georgia, serif';
     ctx.fillText('Click or press Space to start', W / 2, 356);
+  }
+  if (state.mode === 'play' && state.paused) {
+    ctx.fillStyle = 'rgba(5,8,24,0.55)'; ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#ffd94d';
+    ctx.font = 'bold 48px Georgia, serif'; ctx.fillText('PAUSED', W / 2, 262);
+    ctx.fillStyle = '#e8ecff'; ctx.font = '20px Georgia, serif';
+    ctx.fillText('Press P to resume', W / 2, 300);
   }
   if (state.mode === 'over') {
     ctx.fillStyle = 'rgba(5,8,24,0.72)'; ctx.fillRect(0, 0, W, H);
